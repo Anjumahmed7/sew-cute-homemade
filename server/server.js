@@ -120,8 +120,10 @@ const allowList = new Set(
   [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    process.env.CLIENT_ORIGIN,
-    process.env.CLIENT_ORIGIN_2,
+    // process.env.CLIENT_ORIGIN,
+    // process.env.CLIENT_ORIGIN_2,
+    "https://sew-cute-homemade.vercel.app",
+    "https://sew-cute-homemade-a9i9sw4bo-ahmed-anjums-projects.vercel.app",
   ].filter(Boolean)
 );
 const vercelPreview = /^https:\/\/[a-z0-9-]+\.vercel\.app$/i;
