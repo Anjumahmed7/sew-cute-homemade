@@ -169,7 +169,6 @@
 
 // // startServer();
 
-// server/server.js
 import express from "express";
 import mongoose from "mongoose";
 import morgan from "morgan";
@@ -183,83 +182,50 @@ import authRoutes from "./Routes/authRoutes.js";
 
 const app = express();
 
-/* --------------------------- Core middleware --------------------------- */
+// Middleware
 if (process.env.NODE_ENV === "development") app.use(morgan("dev"));
 app.use(express.json());
 app.use(cookieParser());
 
-/* -------------------------------- CORS --------------------------------- */
-/**
- * Strong defaults:
- *  - Allow localhost dev
- *  - Allow one stable production origin (CLIENT_ORIGIN)
- *  - (Optional) Allow ANY vercel preview when ALLOW_VERCEL_PREVIEWS=true
- * Also logs decisions so you can see what's happening in Render logs.
- */
-const allowList = new Set(
-  [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    process.env.CLIENT_ORIGIN, // e.g. https://sew-cute-homemade.vercel.app
-  ].filter(Boolean)
-);
+// ✅ Allowed origins (localhost + Vercel + custom domain if needed)
+const allowList = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  process.env.CLIENT_ORIGIN, // e.g. https://sew-cute-homemade.vercel.app
+  process.env.CLIENT_ORIGIN_2, // optional, e.g. custom domain later
+].filter(Boolean);
 
-// Flip this ON while you're iterating on previews
-const ALLOW_VERCEL_PREVIEWS =
-  String(process.env.ALLOW_VERCEL_PREVIEWS || "false").toLowerCase() === "true";
+// Allow Vercel preview deployments dynamically
+const vercelPreview = /^https:\/\/[a-z0-9-]+\.vercel\.app$/;
 
-// Matches ANY *.vercel.app
-const vercelPreviewRE = /^https:\/\/[a-z0-9-]+\.vercel\.app$/;
+const corsOptions = {
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true); // server-to-server, Postman, curl
 
-const corsOrigin = (origin, cb) => {
-  // No Origin header => server-to-server / curl / Postman
-  if (!origin) {
-    return cb(null, true);
-  }
+    const allowed = allowList.includes(origin) || vercelPreview.test(origin);
 
-  const allowed =
-    allowList.has(origin) ||
-    (ALLOW_VERCEL_PREVIEWS && vercelPreviewRE.test(origin));
+    console.log("[CORS check]", { origin, allowed });
 
-  // Log decision so we can debug from Render logs
-  if (process.env.NODE_ENV !== "test") {
-    console.log(
-      `[CORS] origin="${origin}" allowed=${allowed} ` +
-        `(ALLOW_VERCEL_PREVIEWS=${ALLOW_VERCEL_PREVIEWS})`
-    );
-  }
-
-  return cb(
-    allowed ? null : new Error(`Not allowed by CORS: ${origin}`),
-    allowed
-  );
+    cb(allowed ? null : new Error(`Not allowed by CORS: ${origin}`), allowed);
+  },
+  credentials: true,
 };
 
-app.use(
-  cors({
-    origin: corsOrigin,
-    credentials: true, // allow cookies
-  })
-);
+// Apply CORS + handle preflight
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
-// Explicit preflight handler for all routes
-app.options("*", cors({ origin: corsOrigin, credentials: true }));
-
-/* ------------------------------ Health check --------------------------- */
-app.get("/", (_req, res) => {
-  res.status(200).send("Sew Cute Homemade API is running. Try /api/health");
-});
-
+// Health check
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", message: "Server is running ✅" });
 });
 
-/* -------------------------------- Routes -------------------------------- */
+// Mount routes
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 
-/* ------------------------------ 404 handler ----------------------------- */
+// 404 fallback
 app.use((req, res) => {
   res.status(404).json({
     status: "Failed",
@@ -267,22 +233,18 @@ app.use((req, res) => {
   });
 });
 
-/* ---------------------------- Start the server -------------------------- */
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
-    if (!process.env.MONGO_URI) {
-      throw new Error("Missing MONGO_URI in environment");
-    }
     await mongoose.connect(process.env.MONGO_URI);
     console.log("✅ MongoDB connected");
 
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🚀 Server running at http://localhost:${PORT}`);
     });
   } catch (error) {
-    console.error("❌ Startup failed:", error.message);
+    console.error("❌ DB connection failed:", error.message);
     process.exit(1);
   }
 };
