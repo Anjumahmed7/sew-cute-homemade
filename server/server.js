@@ -236,7 +236,7 @@ const allowList = new Set(
 );
 
 function isAllowedOrigin(origin) {
-  if (!origin) return true; // server-to-server, curl, Postman
+  if (!origin) return true;
   if (allowList.has(origin)) return true;
   if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) return true;
   return false;
@@ -248,13 +248,12 @@ app.use((req, res, next) => {
 
   if (isAllowedOrigin(origin)) {
     if (origin) {
-      // echo the exact Origin for cookies
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
     } else {
-      // non-browser
       res.setHeader("Access-Control-Allow-Origin", "*");
     }
+
     res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader(
       "Access-Control-Allow-Headers",
@@ -269,7 +268,6 @@ app.use((req, res, next) => {
     return next();
   }
 
-  // Not allowed
   return res
     .status(403)
     .json({ status: "fail", message: `CORS blocked for ${origin}` });
