@@ -16,36 +16,59 @@ if (process.env.NODE_ENV === "development") app.use(morgan("dev"));
 app.use(express.json());
 app.use(cookieParser());
 
-const allowed = [/^http:\/\/localhost:5173$/, /^http:\/\/127\.0\.0\.1:5173$/];
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  process.env.CLIENT_ORIGIN, // e.g. https://sew-cute-homemade.vercel.app
-  process.env.CLIENT_ORIGIN_2, // optional extra (custom domain later)
-].filter(Boolean);
+// const allowed = [/^http:\/\/localhost:5173$/, /^http:\/\/127\.0\.0\.1:5173$/];
+// const allowedOrigins = [
+//   "http://localhost:5173",
+//   "http://127.0.0.1:5173",
+//   process.env.CLIENT_ORIGIN, // e.g. https://sew-cute-homemade.vercel.app
+//   process.env.CLIENT_ORIGIN_2, // optional extra (custom domain later)
+// ].filter(Boolean);
 
+// // app.use(
+// //   cors({
+// //     origin: (origin, cb) => {
+// //       if (!origin) return cb(null, true); // Postman / server-to-server
+// //       const ok = allowed.some((rx) => rx.test(origin));
+// //       cb(ok ? null : new Error("Not allowed by CORS"), ok);
+// //     },
+// //     credentials: true,
+// //   })
+// // );
 // app.use(
 //   cors({
 //     origin: (origin, cb) => {
-//       if (!origin) return cb(null, true); // Postman / server-to-server
-//       const ok = allowed.some((rx) => rx.test(origin));
-//       cb(ok ? null : new Error("Not allowed by CORS"), ok);
+//       if (!origin) return cb(null, true); // Postman / server-to-server / curl
+
+//       const ok = allowedOrigins.includes(origin) || vercelPreview.test(origin);
+
+//       return cb(ok ? null : new Error("Not allowed by CORS"), ok);
 //     },
-//     credentials: true,
+//     credentials: true, // send cookies
 //   })
 // );
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      if (!origin) return cb(null, true); // Postman / server-to-server / curl
 
-      const ok = allowedOrigins.includes(origin) || vercelPreview.test(origin);
-
-      return cb(ok ? null : new Error("Not allowed by CORS"), ok);
-    },
-    credentials: true, // send cookies
-  })
+// CORS
+const allowList = new Set(
+  [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    process.env.CLIENT_ORIGIN, // e.g. https://sew-cute-homemade.vercel.app
+    process.env.CLIENT_ORIGIN_2, // optional extra (custom domain later)
+  ].filter(Boolean)
 );
+
+// allow any vercel preview URL: https://<branch>-<project>.vercel.app
+const vercelPreview = /^https:\/\/[a-z0-9-]+\.vercel\.app$/;
+
+const corsOrigin = (origin, cb) => {
+  if (!origin) return cb(null, true); // Postman/cURL/server-to-server
+  const ok = allowList.has(origin) || vercelPreview.test(origin);
+  return cb(ok ? null : new Error(`Not allowed by CORS: ${origin}`), ok);
+};
+
+app.use(cors({ origin: corsOrigin, credentials: true }));
+// handle preflight explicitly (some hosts are picky)
+app.options("*", cors({ origin: corsOrigin, credentials: true }));
 
 // Health check
 app.get("/api/health", (_req, res) => {
