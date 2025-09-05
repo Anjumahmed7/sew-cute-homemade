@@ -118,7 +118,7 @@ app.use(cookieParser());
 // CORS
 const allowList = new Set(
   [
-    "http://localhost:5173",
+    "http://localhost:5000",
     "http://127.0.0.1:5173",
     process.env.CLIENT_ORIGIN,
     process.env.CLIENT_ORIGIN_2,
