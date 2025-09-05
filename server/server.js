@@ -98,56 +98,22 @@
 // };
 
 // startServer();
-import express from "express";
-import mongoose from "mongoose";
-import morgan from "morgan";
-import cors from "cors";
-import "dotenv/config.js";
-import cookieParser from "cookie-parser";
+// import express from "express";
+// import mongoose from "mongoose";
+// import morgan from "morgan";
+// import cors from "cors";
+// import "dotenv/config.js";
+// import cookieParser from "cookie-parser";
 
-import productRoutes from "./Routes/productRoutes.js";
-import orderRoutes from "./Routes/orderRoutes.js";
-import authRoutes from "./Routes/authRoutes.js";
+// import productRoutes from "./Routes/productRoutes.js";
+// import orderRoutes from "./Routes/orderRoutes.js";
+// import authRoutes from "./Routes/authRoutes.js";
 
-const app = express();
+// const app = express();
 
-if (process.env.NODE_ENV === "development") app.use(morgan("dev"));
-app.use(express.json());
-app.use(cookieParser());
-
-// after cookieParser(), before routes
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-
-  // enforce your allow list + previews
-  const allowed =
-    !origin ||
-    allowList.has(origin) ||
-    /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin);
-
-  if (origin && allowed) {
-    res.header("Access-Control-Allow-Origin", origin); // echo exact origin
-  } else if (!origin) {
-    res.header("Access-Control-Allow-Origin", "*");
-  } else {
-    // not allowed
-    return res.status(403).json({ status: "fail", message: "CORS blocked" });
-  }
-
-  res.header("Vary", "Origin");
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Requested-With"
-  );
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET,POST,PUT,PATCH,DELETE,OPTIONS"
-  );
-
-  if (req.method === "OPTIONS") return res.sendStatus(204);
-  next();
-});
+// if (process.env.NODE_ENV === "development") app.use(morgan("dev"));
+// app.use(express.json());
+// app.use(cookieParser());
 
 // // CORS
 // const allowList = new Set(
@@ -186,18 +152,138 @@ app.use((req, res, next) => {
 //   }
 //   next();
 // });
-// app.use(cors({ origin: corsOrigin, credentials: true }));
-// If you *really* want explicit preflight handling, use regex:
-// app.options(/.*/, cors({ origin: corsOrigin, credentials: true }));
-// app.options("(.*)", cors({ origin: corsOrigin, credentials: true }));
-// app.options("(*)", cors({ origin: corsOrigin, credentials: true }));
+// // app.use(cors({ origin: corsOrigin, credentials: true }));
+// // If you *really* want explicit preflight handling, use regex:
+// // app.options(/.*/, cors({ origin: corsOrigin, credentials: true }));
+// // app.options("(.*)", cors({ origin: corsOrigin, credentials: true }));
+// // app.options("(*)", cors({ origin: corsOrigin, credentials: true }));
 
-// Health
+// // Health
+// app.get("/api/health", (_req, res) =>
+//   res.json({ status: "ok", message: "Server is running ✅" })
+// );
+
+// // Routes
+// app.use("/api/auth", authRoutes);
+// app.use("/api/products", productRoutes);
+// app.use("/api/orders", orderRoutes);
+
+// /* ------------------------------ 404 handler ----------------------------- */
+// app.use((req, res) => {
+//   res.status(404).json({
+//     status: "Failed",
+//     message: `Route ${req.originalUrl} not found`,
+//   });
+// });
+
+// /* ---------------------------- Start the server -------------------------- */
+// const PORT = process.env.PORT || 5000;
+
+// const startServer = async () => {
+//   try {
+//     if (!process.env.MONGO_URI) {
+//       throw new Error("Missing MONGO_URI in environment");
+//     }
+//     await mongoose.connect(process.env.MONGO_URI);
+//     console.log("✅ MongoDB connected");
+//     app.listen(PORT, () =>
+//       console.log(`🚀 Server running at http://localhost:${PORT}`)
+//     );
+//   } catch (error) {
+//     console.error("❌ DB connection failed:", error.message);
+//     process.exit(1);
+//   }
+// };
+
+// startServer();
+
+// ------------------------------------------------------------------------------------
+
+// server/server.js
+import express from "express";
+import mongoose from "mongoose";
+import morgan from "morgan";
+import "dotenv/config.js";
+import cookieParser from "cookie-parser";
+
+// NOTE: Do NOT import "cors" and do NOT call app.use(cors(...))
+
+import productRoutes from "./Routes/productRoutes.js";
+import orderRoutes from "./Routes/orderRoutes.js";
+import authRoutes from "./Routes/authRoutes.js";
+
+const app = express();
+
+/* --------------------------- Core middleware --------------------------- */
+if (process.env.NODE_ENV === "development") app.use(morgan("dev"));
+app.use(express.json());
+app.use(cookieParser());
+
+/* ----------------------------- CORS SHIM ------------------------------- */
+/**
+ * We allow:
+ * - localhost dev
+ * - CLIENT_ORIGIN / CLIENT_ORIGIN_2 from env
+ * - any *.vercel.app preview domain
+ */
+const allowList = new Set(
+  [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    process.env.CLIENT_ORIGIN,
+    process.env.CLIENT_ORIGIN_2,
+  ].filter(Boolean)
+);
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true; // server-to-server, curl, Postman
+  if (allowList.has(origin)) return true;
+  if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) return true;
+  return false;
+}
+
+// Apply headers for every request and short-circuit OPTIONS
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (isAllowedOrigin(origin)) {
+    if (origin) {
+      // echo the exact Origin for cookies
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    } else {
+      // non-browser
+      res.setHeader("Access-Control-Allow-Origin", "*");
+    }
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-Requested-With"
+    );
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+    );
+
+    if (req.method === "OPTIONS") return res.sendStatus(204);
+    return next();
+  }
+
+  // Not allowed
+  return res
+    .status(403)
+    .json({ status: "fail", message: `CORS blocked for ${origin}` });
+});
+
+/* ------------------------------ Health check --------------------------- */
+app.get("/", (_req, res) => {
+  res.status(200).send("Sew Cute Homemade API is running. See /api/health");
+});
 app.get("/api/health", (_req, res) =>
   res.json({ status: "ok", message: "Server is running ✅" })
 );
 
-// Routes
+/* -------------------------------- Routes -------------------------------- */
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
@@ -212,7 +298,6 @@ app.use((req, res) => {
 
 /* ---------------------------- Start the server -------------------------- */
 const PORT = process.env.PORT || 5000;
-
 const startServer = async () => {
   try {
     if (!process.env.MONGO_URI) {
@@ -228,5 +313,4 @@ const startServer = async () => {
     process.exit(1);
   }
 };
-
 startServer();
