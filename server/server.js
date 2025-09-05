@@ -120,23 +120,43 @@ const allowList = new Set(
   [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    // process.env.CLIENT_ORIGIN,
-    // process.env.CLIENT_ORIGIN_2,
-    "https://sew-cute-homemade.vercel.app",
-    "https://sew-cute-homemade-a9i9sw4bo-ahmed-anjums-projects.vercel.app",
+    process.env.CLIENT_ORIGIN,
+    process.env.CLIENT_ORIGIN_2,
   ].filter(Boolean)
 );
 const vercelPreview = /^https:\/\/[a-z0-9-]+\.vercel\.app$/i;
 
+// const corsOrigin = (origin, cb) => {
+//   if (!origin) return cb(null, true);
+//   const ok = allowList.has(origin) || vercelPreview.test(origin);
+//   return cb(ok ? null : new Error(`Not allowed by CORS: ${origin}`), ok);
+// };
 const corsOrigin = (origin, cb) => {
-  if (!origin) return cb(null, true);
+  if (!origin) return cb(null, true); // server-to-server / Postman / curl
   const ok = allowList.has(origin) || vercelPreview.test(origin);
+  // debug line shows up in Render -> Logs
+  console.log(`[CORS] origin="${origin}" allowed=${ok}`);
   return cb(ok ? null : new Error(`Not allowed by CORS: ${origin}`), ok);
 };
+app.use(
+  cors({
+    origin: corsOrigin,
+    credentials: true, // allow cookies
+    optionsSuccessStatus: 204,
+  })
+);
 
-app.use(cors({ origin: corsOrigin, credentials: true }));
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
+// app.use(cors({ origin: corsOrigin, credentials: true }));
 // If you *really* want explicit preflight handling, use regex:
 // app.options(/.*/, cors({ origin: corsOrigin, credentials: true }));
+// app.options("(.*)", cors({ origin: corsOrigin, credentials: true }));
+// app.options("(*)", cors({ origin: corsOrigin, credentials: true }));
 
 // Health
 app.get("/api/health", (_req, res) =>
@@ -148,7 +168,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 
-// 404 (no wildcard)
+/* ------------------------------ 404 handler ----------------------------- */
 app.use((req, res) => {
   res.status(404).json({
     status: "Failed",
@@ -156,10 +176,14 @@ app.use((req, res) => {
   });
 });
 
+/* ---------------------------- Start the server -------------------------- */
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
+    if (!process.env.MONGO_URI) {
+      throw new Error("Missing MONGO_URI in environment");
+    }
     await mongoose.connect(process.env.MONGO_URI);
     console.log("✅ MongoDB connected");
     app.listen(PORT, () =>
